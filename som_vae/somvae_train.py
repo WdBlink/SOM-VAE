@@ -33,6 +33,18 @@ from sacred.stflow import LogFileWriter
 from somvae_model import SOMVAE
 from utils import *
 
+import SimpleITK as sitk
+from sklearn.metrics import mean_squared_error
+from tqdm import tqdm, trange
+import random
+import nibabel as nib
+import os
+import numpy as np
+import csv
+from glob import glob
+import pandas as pd
+import matplotlib.pyplot as plt
+
 ex = sacred.Experiment("hyperopt")
 ex.observers.append(sacred.observers.FileStorageObserver.create("../sacred_runs"))
 ex.captured_out_filter = sacred.utils.apply_backspaces_and_linefeeds
@@ -40,7 +52,25 @@ ex.captured_out_filter = sacred.utils.apply_backspaces_and_linefeeds
 # ex.observers.append(sacred.observers.MongoObserver.create(db_name="somvae_hyperopt"))
 
 # assistant = LabAssistant(ex, "somvae_hyperopt", optimizer=SMAC, url="localhost:{}".format(db_port))
+dropbox_path = '../../Dropbox/TrainingData_Part1/'
 
+def generate(subject_id):
+    subject_name = 'Case%02d' % subject_id
+    #读取输入mhd文件数据并处理
+    file_list = os.path.join(dropbox_path, subject_name+'.mhd')
+    itk_img = sitk.ReadImage(file_list)
+    img_array = sitk.GetArrayFromImage(itk_img)
+    #读取标签mhd文件数据并处理
+    label = os.path.join(dropbox_path, subject_name+'_segmentation.mhd')
+    img_label = sitk.ReadImage(label)
+    inputs_label = sitk.GetArrayFromImage(img_label)
+
+#     nii_name = '%02d_niftynet_out' % subject_id
+#     nii_file =  os.path.join(dropbox_path,nii_name+'.nii')
+#     img=nib.load(nii_file)
+#     output_label_arr=img.get_fdata()
+#     output_label_arr=np.squeeze(output_label_arr)
+    return img_array, inputs_label
 
 @ex.config
 def ex_config():
@@ -69,12 +99,12 @@ def ex_config():
             MNIST time series.
         mnist (bool): Indicator if the model is trained on MNIST-like data.
     """
-    num_epochs = 20
+    num_epochs = 1000
     patience = 100
-    batch_size = 32
+    batch_size = 1
     latent_dim = 64
     som_dim = [8,8]
-    learning_rate = 0.0005
+    learning_rate = 0.00005
     alpha = 1.0
     beta = 0.9
     gamma = 1.8
@@ -85,9 +115,8 @@ def ex_config():
     logdir = "../logs/{}".format(ex_name)
     modelpath = "../models/{}/{}.ckpt".format(ex_name, ex_name)
     interactive = True
-    data_set = "MNIST_data"
     save_model = False
-    time_series = True
+    time_series = False
     mnist = True
 
 
@@ -106,14 +135,14 @@ def ex_config():
 #     decay_factor = hyper.UniformFloat(lower=0.8, upper=1.)
 #     interactive = False
 
-mnist = input_data.read_data_sets(f"../data/{ex_config()['data_set']}")
+img_array, inputs_label = generate(0)
+val_array, val_label = generate(1)
+data_train = np.reshape(img_array, [-1, 512, 512, 1])
+labels_train = np.reshape(img_array, [-1, 512, 512, 1])
+data_val = np.reshape(val_array, [-1, 512, 512, 1])
+labels_val = np.reshape(val_label, [-1, 512, 512, 1])
 
-data_train = np.reshape(mnist.train.images, [-1,28,28,1])
-labels_train = mnist.train.labels
-data_val = data_train[45000:]
-labels_val = labels_train[45000:]
-data_train = data_train[:45000]
-labels_train = data_train[:45000]
+print(data_train.shape)
 
 
 @ex.capture
@@ -301,10 +330,10 @@ def main(latent_dim, som_dim, learning_rate, decay_factor, alpha, beta, gamma, t
         dict: Results of the evaluation (NMI, Purity, MSE).
     """
     # Dimensions for MNIST-like data
-    input_length = 28
-    input_channels = 28
-    x = tf.placeholder(tf.float32, shape=[None, 28, 28, 1])
-
+    input_length = 512
+    input_channels = tf.placeholder(tf.float32, shape=[None, 512,512,1])
+    x = tf.placeholder(tf.float32, shape=[None, 512,512,1])
+    
     data_generator = get_data_generator()
 
     lr_val = tf.placeholder_with_default(learning_rate, [])

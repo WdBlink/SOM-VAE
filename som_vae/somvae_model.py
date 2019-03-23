@@ -207,12 +207,14 @@ class SOMVAE:
                 z_e = tf.keras.layers.Dense(self.latent_dim, activation="relu")(h_2)
         else:
             with tf.variable_scope("encoder"):
-                h_conv1 = tf.nn.relu(conv2d(self.inputs, [4,4,1,256], "conv1"))
+                h_conv1 = tf.nn.relu(conv2d(self.inputs, [4,4,1,1], "conv1"))
                 h_pool1 = max_pool_2x2(h_conv1)
-                h_conv2 = tf.nn.relu(conv2d(h_pool1, [4,4,256,256], "conv2"))
+                h_conv2 = tf.nn.relu(conv2d(h_pool1, [4,4,1,1], "conv2"))
                 h_pool2 = max_pool_2x2(h_conv2)
-                flat_size = 7*7*256
-                h_flat = tf.reshape(h_pool2, [-1, flat_size])
+                h_conv3 = tf.nn.relu(conv2d(h_pool2, [4,4,1,1], "conv3"))
+                h_pool3 = max_pool_2x2(h_conv3)
+                flat_size = 64*64*1
+                h_flat = tf.reshape(h_pool3, [-1, flat_size])
                 z_e = tf.keras.layers.Dense(self.latent_dim)(h_flat)
         return z_e
 
@@ -291,14 +293,16 @@ class SOMVAE:
                 x_hat = tf.keras.layers.Dense(self.input_channels, activation="sigmoid")(h_4)
         else:
             with tf.variable_scope("decoder", reuse=tf.AUTO_REUSE):
-                flat_size = 7*7*256
+                flat_size = 64*64*1
                 h_flat_dec = tf.keras.layers.Dense(flat_size)(self.z_q)
-                h_reshaped = tf.reshape(h_flat_dec, [-1, 7, 7, 256])
+                h_reshaped = tf.reshape(h_flat_dec, [-1, 64, 64, 1])
                 h_unpool1 = tf.keras.layers.UpSampling2D((2,2))(h_reshaped)
-                h_deconv1 = tf.nn.relu(conv2d(h_unpool1, [4,4,256,256], "deconv1"))
+                h_deconv1 = tf.nn.relu(conv2d(h_unpool1, [4,4,1,1], "deconv1"))
                 h_unpool2 = tf.keras.layers.UpSampling2D((2,2))(h_deconv1)
-                h_deconv2 = tf.nn.sigmoid(conv2d(h_unpool2, [4,4,256,1], "deconv2"))
-                x_hat = h_deconv2
+                h_deconv2 = tf.nn.sigmoid(conv2d(h_unpool2, [4,4,1,1], "deconv2"))
+                h_unpool3 = tf.keras.layers.UpSampling2D((2,2))(h_deconv2)
+                h_deconv3 = tf.nn.sigmoid(conv2d(h_unpool3, [4,4,1,1], "deconv3"))
+                x_hat = h_deconv3
         return x_hat
 
 
@@ -312,14 +316,16 @@ class SOMVAE:
                 x_hat = tf.keras.layers.Dense(self.input_channels, activation="sigmoid")(h_4)
         else:
             with tf.variable_scope("decoder", reuse=tf.AUTO_REUSE):
-                flat_size = 7*7*256
+                flat_size = 64*64*1
                 h_flat_dec = tf.keras.layers.Dense(flat_size)(self.z_e)
-                h_reshaped = tf.reshape(h_flat_dec, [-1, 7, 7, 256])
+                h_reshaped = tf.reshape(h_flat_dec, [-1, 64, 64, 1])
                 h_unpool1 = tf.keras.layers.UpSampling2D((2,2))(h_reshaped)
-                h_deconv1 = tf.nn.relu(conv2d(h_unpool1, [4,4,256,256], "deconv1"))
+                h_deconv1 = tf.nn.relu(conv2d(h_unpool1, [4,4,1,1], "deconv1"))
                 h_unpool2 = tf.keras.layers.UpSampling2D((2,2))(h_deconv1)
-                h_deconv2 = tf.nn.sigmoid(conv2d(h_unpool2, [4,4,256,1], "deconv2"))
-                x_hat = h_deconv2
+                h_deconv2 = tf.nn.sigmoid(conv2d(h_unpool2, [4,4,1,1], "deconv2"))
+                h_unpool3 = tf.keras.layers.UpSampling2D((2,2))(h_deconv2)
+                h_deconv3 = tf.nn.sigmoid(conv2d(h_unpool3, [4,4,1,1], "deconv3"))
+                x_hat = h_deconv3
         return x_hat
 
 
